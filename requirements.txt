@@ -8,10 +8,12 @@ stable-baselines3>=2.2
 sb3-contrib>=2.2
 tensorboard>=2.15
 
+# Backend (Fase 3)
+fastapi>=0.110
+uvicorn[standard]>=0.27
+websockets>=12.0
+pydantic>=2.6
+
 # Tests
 pytest>=7.4
-
-# Fase 3 (backend) — descomentar cuando llegues ahí
-# fastapi>=0.110
-# uvicorn[standard]>=0.27
-# websockets>=12.0
+httpx>=0.27
