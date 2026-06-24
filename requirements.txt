@@ -1,0 +1,17 @@
+# Núcleo del entorno RL
+gymnasium>=0.29
+numpy>=1.24
+
+# Agente PPO con action masking
+torch>=2.1
+stable-baselines3>=2.2
+sb3-contrib>=2.2
+tensorboard>=2.15
+
+# Tests
+pytest>=7.4
+
+# Fase 3 (backend) — descomentar cuando llegues ahí
+# fastapi>=0.110
+# uvicorn[standard]>=0.27
+# websockets>=12.0

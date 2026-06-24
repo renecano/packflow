@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.python-version
+
+# RL artifacts — no subir pesos ni logs (pesados)
+checkpoints/
+runs/
+*.pt
+*.zip
+*.pth
+tensorboard/
+
+# Datos / manifiestos locales
+*.csv
+data/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+
+# Tests
+.pytest_cache/
+.coverage
+htmlcov/
