@@ -31,6 +31,10 @@ from packflow.env import PackEnv
 # Camión fijo en todas las fases; solo cambia el número de paquetes.
 GRID_SIZE = (12, 6, 8)
 
+# Tamaño máximo de la cola. Fija la forma de la observación para que el
+# curriculum pueda variar n_packages sin romper la transferencia de pesos.
+MAX_PACKAGES = 20
+
 # (n_packages, timesteps) por fase del curriculum.
 CURRICULUM = [
     (4, 200_000),
@@ -87,7 +91,12 @@ def mask_fn(env: gym.Env) -> np.ndarray:
 
 
 def make_env(n_packages: int, seed: int = 0) -> gym.Env:
-    env = PackEnv(grid_size=GRID_SIZE, n_packages=n_packages, seed=seed)
+    env = PackEnv(
+        grid_size=GRID_SIZE,
+        n_packages=n_packages,
+        max_packages=MAX_PACKAGES,
+        seed=seed,
+    )
     return ActionMasker(env, mask_fn)
 
 

@@ -66,6 +66,7 @@ class PackEnv(gym.Env):
         self,
         grid_size: tuple[int, int, int] = (12, 6, 8),
         n_packages: int = 20,
+        max_packages: int | None = None,
         max_weight: float = 1000.0,
         support_threshold: float = 0.8,
         reward_coeffs: dict[str, float] | None = None,
@@ -76,6 +77,14 @@ class PackEnv(gym.Env):
         self.W, self.H, self.D = grid_size
         self.grid_volume = self.W * self.H * self.D
         self.n_packages = n_packages
+        # max_packages fija el tamaño del espacio de observación (la tabla de la
+        # cola). Permite que el curriculum varíe n_packages manteniendo una
+        # observación de forma constante (las filas sobrantes se rellenan con
+        # ceros). Si no se especifica, es igual a n_packages.
+        self.max_packages = max_packages if max_packages is not None else n_packages
+        assert self.n_packages <= self.max_packages, (
+            "n_packages no puede exceder max_packages"
+        )
         self.max_weight = max_weight
         self.support_threshold = support_threshold
 
@@ -106,7 +115,7 @@ class PackEnv(gym.Env):
                 "queue": spaces.Box(
                     low=0.0,
                     high=1.0,
-                    shape=(self.n_packages, N_FEATURES),
+                    shape=(self.max_packages, N_FEATURES),
                     dtype=np.float32,
                 ),
             }
@@ -148,6 +157,10 @@ class PackEnv(gym.Env):
         if options and "boxes" in options:
             self.boxes = list(options["boxes"])
             self.n_packages = len(self.boxes)
+            assert self.n_packages <= self.max_packages, (
+                f"el manifiesto tiene {self.n_packages} paquetes pero "
+                f"max_packages={self.max_packages}"
+            )
         else:
             self.boxes = self._generate_boxes()
 
@@ -382,7 +395,10 @@ class PackEnv(gym.Env):
     def _get_obs(self) -> dict[str, np.ndarray]:
         voxel = self.occupancy.astype(np.float32)
 
-        queue = np.zeros((self.n_packages, N_FEATURES), dtype=np.float32)
+        # Tabla de tamaño fijo (max_packages). Las filas de los paquetes que no
+        # existen en este episodio quedan en cero y se marcan como procesadas
+        # (state=1) para que el agente las ignore como contexto.
+        queue = np.zeros((self.max_packages, N_FEATURES), dtype=np.float32)
         max_dim = max(self.W, self.H, self.D)
         denom = self.n_packages - 1 if self.n_packages > 1 else 1
         for i, box in enumerate(self.boxes):
@@ -401,6 +417,9 @@ class PackEnv(gym.Env):
                 box.weight / self.max_weight,
                 state,
             ]
+        # Padding: filas no usadas marcadas como procesadas.
+        if self.n_packages < self.max_packages:
+            queue[self.n_packages :, 6] = 1.0
         return {"voxel": voxel, "queue": queue}
 
     def _get_info(self) -> dict[str, Any]:
