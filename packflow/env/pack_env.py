@@ -30,6 +30,7 @@ from typing import Any
 import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
+from numpy.lib.stride_tricks import sliding_window_view
 
 from .box import Box
 
@@ -220,6 +221,10 @@ class PackEnv(gym.Env):
 
         El skip siempre es válido. Una colocación es válida si el paquete cabe,
         no colisiona, queda apoyado y no excede el peso máximo.
+
+        Versión vectorizada: usa ventanas deslizantes de NumPy para evaluar
+        todas las posiciones de cada rotación a la vez, en lugar de un triple
+        bucle en Python. Produce exactamente la misma máscara, mucho más rápido.
         """
         mask = np.zeros(self.action_space.n, dtype=bool)
         mask[self.skip_action] = True
@@ -228,16 +233,37 @@ class PackEnv(gym.Env):
             return mask
 
         box = self.boxes[self.current_idx]
+        # Si el paquete no cabe por peso, ninguna colocación es válida.
+        if self.total_weight + box.weight > self.max_weight:
+            return mask
+
+        occ = self.occupancy
+        W, H, D, thr = self.W, self.H, self.D, self.support_threshold
+
         for rotation in range(6):
             rw, rh, rd = box.dims(rotation)
-            if rw > self.W or rh > self.H or rd > self.D:
+            if rw > W or rh > H or rd > D:
                 continue
-            for x in range(self.W - rw + 1):
-                for y in range(self.H - rh + 1):
-                    for z in range(self.D - rd + 1):
-                        if self._is_valid(box, x, y, z, rotation):
-                            idx = self._encode_action(x, y, z, rotation)
-                            mask[idx] = True
+            nx, ny, nz = W - rw + 1, H - rh + 1, D - rd + 1
+
+            # Colisión: suma de la ventana (rw, rh, rd) == 0 → región libre.
+            win = sliding_window_view(occ, (rw, rh, rd))  # (nx, ny, nz, rw, rh, rd)
+            free = win.sum(axis=(3, 4, 5)) == 0  # (nx, ny, nz)
+
+            # Soporte (gravedad): z=0 apoya en el suelo; z>0 exige que la capa
+            # inferior tenga al menos `thr` de su base ocupada.
+            support = np.ones((nx, ny, nz), dtype=bool)
+            base_area = rw * rh
+            for z in range(1, nz):
+                layer = occ[:, :, z - 1]  # (W, H)
+                s2 = sliding_window_view(layer, (rw, rh)).sum(axis=(2, 3))  # (nx, ny)
+                support[:, :, z] = (s2 / base_area) >= thr
+
+            valid = free & support
+            xs, ys, zs = np.nonzero(valid)
+            idxs = ((xs * H + ys) * D + zs) * 6 + rotation
+            mask[idxs] = True
+
         return mask
 
     # ------------------------------------------------------------------ #

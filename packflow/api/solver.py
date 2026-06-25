@@ -77,7 +77,14 @@ def make_env(
     truck: tuple[int, int, int],
     max_weight: float,
 ) -> PackEnv:
-    env = PackEnv(grid_size=truck, n_packages=len(box_inputs), max_weight=max_weight)
+    # max_packages debe coincidir con el del entrenamiento (20) para que la
+    # forma de la observación encaje con la que el modelo PPO espera.
+    env = PackEnv(
+        grid_size=truck,
+        n_packages=len(box_inputs),
+        max_packages=20,
+        max_weight=max_weight,
+    )
     env.reset(options={"boxes": _build_boxes(box_inputs)})
     return env
 

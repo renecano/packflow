@@ -19,6 +19,12 @@ tensorboard/
 *.csv
 data/
 
+# Node / frontend
+node_modules/
+dist/
+.env
+*.local
+
 # IDE / OS
 .vscode/
 .idea/
