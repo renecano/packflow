@@ -123,7 +123,16 @@ class PackEnv(gym.Env):
         )
 
         # Rango de dimensiones de los paquetes generados aleatoriamente.
-        self._dim_range = (1, max(2, min(self.W, self.H, self.D) // 2))
+        # Rangos de dimensión por eje. Elegidos para que el volumen total de
+        # los paquetes exceda la capacidad del camión (~110-130%), forzando un
+        # empaquetado denso y decisiones reales de qué dejar fuera. Un problema
+        # holgado (cajas diminutas) es trivial y el agente no aprende a mejorar
+        # sobre una heurística simple.
+        self._dim_ranges = (
+            (2, max(3, self.W // 2 - 1)),  # w a lo largo de W
+            (2, max(3, self.H // 2 + 1)),  # h a lo largo de H
+            (2, max(3, self.D // 2 + 1)),  # d a lo largo de D
+        )
 
         self._rng = np.random.default_rng(seed)
 
@@ -318,16 +327,16 @@ class PackEnv(gym.Env):
     # Helpers internos
     # ------------------------------------------------------------------ #
     def _generate_boxes(self) -> list[Box]:
-        lo, hi = self._dim_range
+        (wlo, whi), (hlo, hhi), (dlo, dhi) = self._dim_ranges
         delivery = self._rng.permutation(self.n_packages)
         boxes = []
         for i in range(self.n_packages):
             boxes.append(
                 Box(
                     id=i,
-                    w=int(self._rng.integers(lo, hi + 1)),
-                    h=int(self._rng.integers(lo, hi + 1)),
-                    d=int(self._rng.integers(lo, hi + 1)),
+                    w=int(self._rng.integers(wlo, whi + 1)),
+                    h=int(self._rng.integers(hlo, hhi + 1)),
+                    d=int(self._rng.integers(dlo, dhi + 1)),
                     weight=float(round(self._rng.uniform(1.0, 50.0), 2)),
                     fragility=float(round(self._rng.uniform(0.0, 1.0), 2)),
                     delivery_order=int(delivery[i]),
