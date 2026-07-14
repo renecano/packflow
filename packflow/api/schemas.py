@@ -64,6 +64,8 @@ class Metrics(BaseModel):
     volume_utilization: float
     total_weight: float
     max_weight: float
+    sequence_violations: int = 0
+    damage_score: float = 0.0
 
 
 class PackResponse(BaseModel):

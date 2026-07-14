@@ -276,6 +276,71 @@ class PackEnv(gym.Env):
         return mask
 
     # ------------------------------------------------------------------ #
+    # Métricas de calidad de la solución
+    # ------------------------------------------------------------------ #
+    def sequence_violations(self) -> int:
+        """Cuenta pares de paquetes bloqueados por el orden de descarga.
+
+        La puerta está en x = 0. Un paquete A está bloqueado por B si B se
+        entrega DESPUÉS que A (delivery_order mayor) y está entre A y la
+        puerta solapando en (y, z) — habría que sacar B antes de llegar a A.
+
+        Cada par (A, B) cuenta una vez. Es la métrica que el baseline greedy
+        ignora por completo y que el agente sí optimiza vía r_sequence.
+        """
+        placed = [
+            (bid, pos) for bid, pos in self.placements.items() if pos is not None
+        ]
+        violations = 0
+        for a_id, (ax, ay, az, arot) in placed:
+            a = self.boxes[a_id]
+            aw, ah, ad = a.dims(arot)
+            for b_id, (bx, by, bz, brot) in placed:
+                if a_id == b_id:
+                    continue
+                b = self.boxes[b_id]
+                # Solo bloquea si B se entrega después que A.
+                if b.delivery_order <= a.delivery_order:
+                    continue
+                bw, bh, bd = b.dims(brot)
+                # B debe estar más cerca de la puerta (x menor) que A.
+                if bx + bw > ax:
+                    continue
+                # Y solapar con A en el plano (y, z) de extracción.
+                overlap_y = (by < ay + ah) and (ay < by + bh)
+                overlap_z = (bz < az + ad) and (az < bz + bd)
+                if overlap_y and overlap_z:
+                    violations += 1
+        return violations
+
+    def damage_score(self) -> float:
+        """Daño acumulado: peso soportado por paquetes frágiles.
+
+        Suma, por cada paquete frágil, la fragilidad × peso normalizado que
+        tiene encima. 0 = ningún frágil aplastado.
+        """
+        total = 0.0
+        for bid, pos in self.placements.items():
+            if pos is None:
+                continue
+            x, y, z, rot = pos
+            box = self.boxes[bid]
+            rw, rh, rd = box.dims(rot)
+            if box.fragility <= 0:
+                continue
+            # Ids de lo que está justo encima de este paquete.
+            top = z + rd
+            if top >= self.D:
+                continue
+            above = self.id_grid[x : x + rw, y : y + rh, top].ravel()
+            for oid in np.unique(above):
+                if oid < 0 or oid == bid:
+                    continue
+                w_norm = self.boxes[int(oid)].weight / self.max_weight
+                total += box.fragility * w_norm
+        return round(total, 4)
+
+    # ------------------------------------------------------------------ #
     # Serialización para el frontend / FastAPI
     # ------------------------------------------------------------------ #
     def get_solution(self) -> dict[str, Any]:
@@ -320,6 +385,8 @@ class PackEnv(gym.Env):
                 "volume_utilization": round(used_volume / self.grid_volume, 4),
                 "total_weight": round(self.total_weight, 2),
                 "max_weight": self.max_weight,
+                "sequence_violations": self.sequence_violations(),
+                "damage_score": self.damage_score(),
             },
         }
 
